@@ -35,8 +35,15 @@ TFMPlus tfmP;         // Create a TFMini Plus object
 // 'mySerial.begin(115200); etc.
 
 //#include <SoftwareSerial.h>       
-//SoftwareSerial mySerial( 10, 11);   
-                                    
+//SoftwareSerial mySerial( 10, 11);
+
+// Wiring Setup:
+//front facing left is Pin #1
+// Pin #1 – +5V – Power Supply
+// Pin #2 – RXD/SDA – Receiving/Data
+// Pin #3 – TXD/SCL – Transmitting/Clock
+// Pin #4 – GND – Ground
+// Pin #5 – GND                                         
 void setup()
 {
     Serial.begin( 115200);   // Intialize terminal serial port
