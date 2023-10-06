@@ -2,7 +2,7 @@
 #include "Arduino.h"
 #include <WiFi.h>
 #include <HTTPClient.h>
-
+#include <Arduino_JSON.h>
 #define RF_FREQUENCY                                915000000 // Hz
 
 #define TX_OUTPUT_POWER                             14        // dBm
@@ -39,12 +39,14 @@ bool lora_idle = true;
 
 
 //works on 2.4 GHz connections only
-const char* ssid = "Austin 2.4 GHz";
-const char* password = "face2face";
+const char* ssid = "AyaanPhone";
+const char* password = "Star38183";
 
 //Your Domain name with URL path or IP address with path
 String serverName = "https://ipp77fz2z8.execute-api.eu-north-1.amazonaws.com/Dev";
-String coords;
+String droneCoords = "0,0";
+String phoneCoords = "0,0";
+String prevPhoneCoords = "";
 // the following variables are unsigned longs because the time, measured in
 // milliseconds, will quickly become a bigger number than can be stored in an int.
 unsigned long lastTime = 0;
@@ -53,12 +55,14 @@ unsigned long lastTime = 0;
 // Set timer to 5 seconds (5000)
 unsigned long timerDelay = 5000;
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(9600);
     Mcu.begin();
     
     txNumber=0;
     rssi=0;
   
+    RadioEvents.TxDone = OnTxDone;
+    RadioEvents.TxTimeout = OnTxTimeout;
     RadioEvents.RxDone = OnRxDone;
     Radio.Init( &RadioEvents );
     Radio.SetChannel( RF_FREQUENCY );
@@ -80,9 +84,10 @@ void setup() {
 }
 
 
-
+bool started = false;
 void loop()
 {
+  if(started){
   if(lora_idle)
   {
     lora_idle = false;
@@ -102,14 +107,14 @@ void loop()
       http.begin(serverPath.c_str());
 
       http.addHeader("Content-Type", "application/json");
-      String postData = "{\"ID\":\"drone\",\"gps\":\""+coords+"\"}";
+      String postData = "{\"ID\":\"drone\",\"gps\":\""+droneCoords+"\"}";
       int httpResponseCode = http.POST(postData);
       if(httpResponseCode != 200){
       Serial.print("Error Code: ");
       Serial.println(httpResponseCode);
       }
       else{
-      Serial.println("Data posted successfully");
+      Serial.println("Data posted successfully: "+postData);
       }
       // Free resources
       http.end();
@@ -119,12 +124,62 @@ void loop()
     }
     lastTime = millis();
   }
+  }
+  else{//send phone location
+      //Check WiFi connection status
+    if(WiFi.status()== WL_CONNECTED){
+      HTTPClient http;
+
+      String serverPath = serverName;
+      
+      // Your Domain name with URL path or IP address with path
+      http.begin(serverPath.c_str());
+      int httpResponseCode = http.GET();
+      if(httpResponseCode != 200){
+      Serial.print("Error Code: ");
+      Serial.println(httpResponseCode);
+      }
+      else{
+      phoneCoords = http.getString();
+      JSONVar myObject = JSON.parse(phoneCoords);
+      phoneCoords = JSON.stringify(myObject["body"]["phone"]["Item"]["GPS"]);
+      }
+      // Free resources
+      http.end();
+    }
+  if(prevPhoneCoords == ""){
+    prevPhoneCoords = phoneCoords;
+  }
+  if(lora_idle == true && phoneCoords != prevPhoneCoords)
+  {
+    txNumber += 0.01;
+    sprintf(txpacket,phoneCoords.c_str());  //start a package
+    Serial.printf("\r\nsending packet \"%s\" , length %d\r\n",txpacket, strlen(txpacket));
+
+    Radio.Send( (uint8_t *)txpacket, strlen(txpacket) ); //send the package out 
+    lora_idle = false;
+    started = true;
+  }
+  prevPhoneCoords = phoneCoords;
+  Radio.IrqProcess( );
+  }
+}
+void OnTxDone( void )
+{
+  Serial.println("TX done......");
+  lora_idle = true;
+}
+void OnTxTimeout( void )
+{
+    Radio.Sleep( );
+    Serial.println("TX Timeout......");
+    lora_idle = true;
 }
 void OnRxDone( uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr )
 {
     rssi=rssi;
     rxSize=size;
-    coords = rxpacket;
+    droneCoords = String(rxpacket);
     memcpy(rxpacket, payload, size );
     rxpacket[size]='\0';
     Radio.Sleep( );

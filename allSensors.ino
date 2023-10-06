@@ -9,7 +9,6 @@
 // Choose two Arduino pins to use for software serial
 int RXPin = 2;
 int TXPin = 3;
-
 //Default baud of NEO-6M is 9600
 int GPSBaud = 9600;
 // The TinyGPSPlus object
@@ -31,13 +30,14 @@ Adafruit_BNO055 bno = Adafruit_BNO055(55);
 void setup(void) 
 {
   Serial.begin(9600);
-  Serial.println("Full Sensor Test"); Serial.println("");
+  //Serial.println("Full Sensor Test"); Serial.println("");
       Wire.begin();           // initialize Wire library
+      pinMode(13, OUTPUT);
   /* Initialise the sensor */
   if(!bno.begin())
   {
     /* There was a problem detecting the BNO055 ... check your connections */
-    Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
+    //Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
     while(1);
   }
     delay(1000);
@@ -45,47 +45,24 @@ void setup(void)
   bno.setExtCrystalUse(true);
     // Start the software serial port at the GPS's default baud
   ss.begin(GPSBaud);
-
 }
+String postData = "55.2944,29.2359 ";
+bool blinking = false;
 void displayInfo() {
-	Serial.print(F("Location: ")); 
+	//Serial.print(F("Location: ")); 
 	if (gps.location.isValid()) {
-		Serial.print(gps.location.lat(), 6);
-		Serial.print(F(","));
-		Serial.print(gps.location.lng(), 6);
+		// Serial.print(gps.location.lat(), 6);
+		// Serial.print(F(","));
+		// Serial.print(gps.location.lng(), 6);
+    postData = String(gps.location.lng(), 6)+","+String(gps.location.lat(), 6)+" ";
+    digitalWrite(13, blinking);
+blinking = !blinking;
+    //Serial.println(postData);
+    // Serial.println("Coords: "+postData);
+    
 	} else {
-		Serial.print(F("INVALID"));
+		// Serial.print(F("INVALID"));
 	}
-
-	Serial.print(F("  Date/Time: "));
-	if (gps.date.isValid()) {
-		Serial.print(gps.date.month());
-		Serial.print(F("/"));
-		Serial.print(gps.date.day());
-		Serial.print(F("/"));
-		Serial.print(gps.date.year());
-	} else {
-		Serial.print(F("INVALID"));
-	}
-
-	Serial.print(F(" "));
-	if (gps.time.isValid()) {
-		if (gps.time.hour() < 10) Serial.print(F("0"));
-		Serial.print(gps.time.hour());
-		Serial.print(F(":"));
-		if (gps.time.minute() < 10) Serial.print(F("0"));
-		Serial.print(gps.time.minute());
-		Serial.print(F(":"));
-		if (gps.time.second() < 10) Serial.print(F("0"));
-		Serial.print(gps.time.second());
-		Serial.print(F("."));
-		if (gps.time.centisecond() < 10) Serial.print(F("0"));
-		Serial.print(gps.time.centisecond());
-	} else {
-		Serial.print(F("INVALID"));
-	}
-
-	Serial.println();
 }
 void loop(void) 
 {
@@ -95,29 +72,33 @@ void loop(void)
 			displayInfo();
 		}
 	}
-
+    if(postData != "0,0"){
+    for(int i = 0; i < postData.length(); i++){
+Serial.write(postData[i]);
+    }
+    }
 	if (millis() > 5000 && gps.charsProcessed() < 10) {
-		Serial.println(F("No GPS detected: check wiring."));
+		//Serial.println(F("No GPS detected: check wiring."));
 		while(true);
 	}
   
       if( tflI2C.getData( tfDist, tfAddr)) // If read okay...
     {
-        Serial.print("Dist: ");
-        Serial.println(tfDist);          // print the data...
+        // Serial.print("Dist: ");
+        // Serial.println(tfDist);          // print the data...
     }
-    else tflI2C.printStatus();           // else, print error.
+    //else tflI2C.printStatus();           // else, print error.
   sensors_event_t event; 
   bno.getEvent(&event);
   
-  Serial.print("X: ");
-  Serial.print(event.orientation.x, 4);
-  Serial.print("\tY: ");
-  Serial.print(event.orientation.y, 4);
-  Serial.print("\tZ: ");
-  Serial.print(event.orientation.z, 4);
-  Serial.println("");
+  // Serial.print("X: ");
+  // Serial.print(event.orientation.x, 4);
+  // Serial.print("\tY: ");
+  // Serial.print(event.orientation.y, 4);
+  // Serial.print("\tZ: ");
+  // Serial.print(event.orientation.z, 4);
+  // Serial.println("");
   
-  delay(100);
+  delay(1000);
   
 }

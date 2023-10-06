@@ -7,7 +7,7 @@
 #define TX_OUTPUT_POWER                             5        // dBm
 
 #define LORA_BANDWIDTH                              0         // [0: 125 kHz,
-                                                              //  1: 250 kHz,
+                                                             //  1: 250 kHz,
                                                               //  2: 500 kHz,
                                                               //  3: Reserved]
 #define LORA_SPREADING_FACTOR                       7         // [SF7..SF12]
@@ -28,7 +28,7 @@ char txpacket[BUFFER_SIZE];
 char rxpacket[BUFFER_SIZE];
 
 double txNumber;
-
+int16_t rssi,rxSize;
 bool lora_idle=true;
 
 static RadioEvents_t RadioEvents;
@@ -40,10 +40,11 @@ void setup() {
     Mcu.begin();
   
     txNumber=0;
-
+    rssi=0;
+  
     RadioEvents.TxDone = OnTxDone;
     RadioEvents.TxTimeout = OnTxTimeout;
-    
+    RadioEvents.RxDone = OnRxDone;
     Radio.Init( &RadioEvents );
     Radio.SetChannel( RF_FREQUENCY );
     Radio.SetTxConfig( MODEM_LORA, TX_OUTPUT_POWER, 0, LORA_BANDWIDTH,
@@ -53,36 +54,78 @@ void setup() {
    }
 
 
-String coords = "";//example coords (long, lat)
+String droneCoords = "";//example coords (long, lat)
+String phoneCoords = "";
+bool started = false;
+void serialFlush(){
+  while(Serial.available() > 0) {
+    char t = Serial.read();
+  }
+}
 void loop()
 {
-        while(Serial.available()) {
+  //Serial.println(Serial.available());
+  if(started){
+        while(Serial.available()) { 
     char data_rcvd = Serial.read();   // read one byte from serial buffer and save to data_rcvd
-coords += data_rcvd;
+    if(data_rcvd == ' '){
+      break;
+    }
+droneCoords += data_rcvd;
 //Serial.println(data_rcvd);
-  }// send the char '1' to serial if button is pressed.
-  if(lora_idle == true && coords != "")
+  }
+  if(droneCoords.length() > 30){
+    Serial.println(droneCoords);
+    droneCoords = "";
+    serialFlush();
+    return;
+  }
+  if(lora_idle == true && droneCoords != "")
   {
+    Serial.println(droneCoords);
     txNumber += 0.01;
-    sprintf(txpacket,coords.c_str());  //start a package
-    coords = "";
+    sprintf(txpacket,droneCoords.c_str());  //start a package
+    droneCoords = "";
     Serial.printf("\r\nsending packet \"%s\" , length %d\r\n",txpacket, strlen(txpacket));
 
     Radio.Send( (uint8_t *)txpacket, strlen(txpacket) ); //send the package out 
     lora_idle = false;
   }
   Radio.IrqProcess( );
+  }
+  else{
+      if(lora_idle)
+  {
+    lora_idle = false;
+    Radio.Rx(0);
+  }
+  Radio.IrqProcess( );
+  }
 }
 
 void OnTxDone( void )
 {
-  Serial.println("TX done......");
+  //Serial.println("TX done......");
   lora_idle = true;
 }
-
+void OnRxDone( uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr )
+{
+    rssi=rssi;
+    rxSize=size;
+    memcpy(rxpacket, payload, size );
+    phoneCoords = String(rxpacket);
+    Serial.println(phoneCoords);
+      if(phoneCoords != ""){
+    started = true;
+  }
+    rxpacket[size]='\0';
+    Radio.Sleep( );
+    //Serial.printf("\r\nreceived packet \"%s\" with rssi %d , length %d\r\n",rxpacket,rssi,rxSize);
+    lora_idle = true;
+}
 void OnTxTimeout( void )
 {
     Radio.Sleep( );
-    Serial.println("TX Timeout......");
+    //Serial.println("TX Timeout......");
     lora_idle = true;
 }
